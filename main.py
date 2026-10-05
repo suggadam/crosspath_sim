@@ -12,26 +12,6 @@ class Agent:
         self.move_instructions = [(0,0)] * maximum_move_instruction_length
         self.wait_time = 0
 
-# edit to see if git works
-
-    # Function called each tick
-    def move(self, new_coords: tuple[int, int]):
-        # Update coordinates with move-instructions; tuples of two -1s, 0s, and/or 1s, referring to axial adjustment
-        if self.move_instructions[0] != (0, 0):
-            self.current_coords[0] += self.move_instructions[0][0] # Adjust x-coordinate
-            self.current_coords[1] += self.move_instructions[0][1] # Adjust y-coordinate
-        # Update instructions
-        self.move_instructions = self.move_instructions[1:]
-        self.move_instructions.append((0, 0))
-
-
-    # Function called to wait agent [remove from active list, add to waiting list]
-    # Once wait is complete, returns 0 [remove from waiting list, add to active list]
-    def wait_tick(self):
-        if self.wait_time == 0:
-            return 0
-        else:
-            self.wait_time -= 1
 
     # Provides agent with new move-instructions to iterate through at each time-step
     # Overrides old move-instructions with new; after last new index, iterates once to add termination 0, 0 tuple.
@@ -45,6 +25,27 @@ class Agent:
         if i < len(self.move_instructions):
             self.move_instructions[i] = (0, 0) # Set termination at index after last instruction
 
+    # Function called each tick;
+    # Iterates through move-instruction list, applying translation from first index to agent's coords.
+    def move(self, new_coords: tuple[int, int]):
+        # Update coordinates with move-instruction; tuples (-1/0/1, -1/0/1) representing axial translation
+        # Allows diagonal movement in one-tick;
+        # To be worked on
+        if self.move_instructions[0] != (0, 0):
+            self.current_coords[0] += self.move_instructions[0][0] # Adjust x-coordinate
+            self.current_coords[1] += self.move_instructions[0][1] # Adjust y-coordinate
+        # Update instructions; delete used instruction, add empty to end.
+        self.move_instructions = self.move_instructions[1:]
+        self.move_instructions.append((0, 0))
+
+
+    # Function called to wait agent [remove from active list, add to waiting list]
+    # Once wait is complete, returns 0 [remove from waiting list, add to active list]
+    def wait_tick(self):
+        if self.wait_time == 0:
+            return 0
+        else:
+            self.wait_time -= 1
 
 
     def get_current_coords(self):
@@ -62,13 +63,13 @@ class Agent:
 # Finds quickest path from starting position to goal (distance * resistance).
 # Using JPS, Jump Point Search.
 # Returns a list of (x, y) coordinates as instructions to follow.
-# Function must only be called once per commute.
-# Memory usage is dynamic; must implement limitation (i.e. maximum # of steps allowable as function of map size)
+# Calls on each agent in "active-agent-list-with-no-instruction"
 def pathfind(map_matrix: list[list[int]],
              starting_coords: tuple[int, int],
-             goal_coords: tuple[int, int]) -> list[tuple[int, int]]:
+             goal_coords: tuple[int, int], max_num_of_steps: int) -> list[tuple[int, int]]:
+    instructions = [(0, 0)] * max_num_of_steps # Static memory usage
     print("pathfinding")
-    return [(0,0)]
+    return []
 
 
 
@@ -98,9 +99,9 @@ def time_step(tick: int, ticks_in_day: int, ):
 
 
 # Generate an empty matrix of the world
-def generate_world(WORLD_MAX_X: int, WORLD_MAX_Y: int) -> list[list[int]]:
+def generate_world(world_max_w: int, world_max_y: int) -> list[list[int]]:
     # Ints represent move-speed restriction; 0 is unrestricted. 100 is uncommutable (a wall).
-    world = [[0 for i in range(WORLD_MAX_X)] for i in range(WORLD_MAX_Y)]
+    world = [[0 for i in range(world_max_w)] for i in range(world_max_y)]
 
     return world
 
@@ -122,18 +123,25 @@ def main():
     print("Hello World")
 
     # Take user input for parameters of world and agents
-    WORLD_MAX_X = 1000
-    WORLD_MAX_Y = 1000
-    NUM_OF_AGENTS = 1
-    MAX_NUM_OF_TICKS = 10000
+    world_max_x = 1000
+    world_max_y = 1000
+    num_of_agents = 1
+    max_num_of_ticks = 10000
     duration_of_day_in_ticks = 86400 # If 1-tick = 1-second then 86400-ticks = 24-hours
 
-
     # Call functions to generate world and agents
-    world_matrix = generate_world(WORLD_MAX_X, WORLD_MAX_Y)
-    list_of_agents = generate_agents(NUM_OF_AGENTS)
+    world_matrix = generate_world(world_max_x, world_max_y)
+    list_of_agents = generate_agents(num_of_agents)
 
+    for agent in list_of_agents:
+        print(agent.current_coords)
 
+    # Agents in this list awaiting pathfinding
+    active_agent_list_no_instruction = []
+    # Agents in this list to perform move instructions
+    active_agent_list_with_instruction = []
+    # Agents in this list to iterate their wait order
+    waiting_agent_list = []
 
     print_map(world_matrix)
 

@@ -14,6 +14,7 @@ class Agent:
         self.target_coords = (0, 0)
         self.commute_schedule: list[tuple[int, int]] = [home_coords, work_coords]
         self.move_instructions: list[tuple[int, int]] = [(0,0)] * max_instructions_length
+        self.wait_time = 0
 
     # Instructions should be verified before use
     def move_step(self) -> bool:
@@ -28,13 +29,20 @@ class Agent:
         else:
             return False
 
-    def take_new_instructions(self,
+    def take_new_move_instructions(self,
                               new_instructions: list[tuple[int, int]]) -> bool:
+
+        def _verify_move_instruction_legality(instruction: tuple[int, int]) -> bool:
+            if instruction[0] < -1 or instruction[0] > 1 or instruction[1] < -1 or instruction[1] > 1:
+                return False
+            else:
+                return True
+
         if len(new_instructions) <= len(self.move_instructions):
             i = 0
             while i < len(new_instructions):
                 # Ensure instruction is legal; if not, cuts instruction short.
-                if self.verify_move_instruction_legality(new_instructions[i]):
+                if _verify_move_instruction_legality(new_instructions[i]):
                     self.move_instructions[i] = new_instructions[i]
                     i += 1
                 else:
@@ -46,13 +54,12 @@ class Agent:
         else:
             return False
 
-    def verify_move_instruction_legality(self, instruction: tuple[int, int]) -> bool:
-        if instruction[0] < -1 or instruction[0] > 1:
-            return False
-        elif instruction[1] < -1 or instruction[1] > 1:
-            return False
-        else:
+    def wait_tick(self):
+        if self.wait_time >= 1:
+            self.wait_time -= 1
             return True
+        else:
+            return False
 
 
 class Map:
@@ -74,7 +81,7 @@ class Simulation:
 
 def main():
     agent = Agent(0, (0, 0), (100, 100), 100)
-    agent.take_new_instructions([(1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1)])
+    agent.take_new_move_instructions([(1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1)])
     for i in range(100):
         agent.move_step()
         print(agent.x, agent.y)

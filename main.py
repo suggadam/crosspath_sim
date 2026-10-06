@@ -14,7 +14,7 @@ class Agent:
         self.HOME_COORDS = home_coords
         self.WORK_COORDS = work_coords
         self.target_dest_queue: list[tuple[int, int]] = [home_coords, work_coords]
-        self.move_instructions: list[tuple[int, int]] = [(0,0)] * max_instructions_length
+        self.move_instructions_queue: list[tuple[int, int]] = [(0, 0)] * max_instructions_length
         self.wait_time = 0
         self.pos_log = [(0, 0)] * pos_log_cap # Updates one element per tick in the simulation
 
@@ -39,15 +39,16 @@ class Agent:
             return False
 
 
+    # Performs the 0th index move-instruction; then deletes instruction
     # Instructions should be verified before use
     def move_step(self) -> bool:
-        if self.move_instructions[0] != (0, 0):
+        if self.move_instructions_queue[0] != (0, 0):
             # Translate current position to new position with instructions
-            self.x += self.move_instructions[0][0]
-            self.y += self.move_instructions[0][1]
+            self.x += self.move_instructions_queue[0][0]
+            self.y += self.move_instructions_queue[0][1]
             # Update instruction, deleting used instruction and appending empty instruction
-            self.move_instructions = self.move_instructions[1:]
-            self.move_instructions.append((0, 0))
+            self.move_instructions_queue.pop(0)
+            self.move_instructions_queue.append((0, 0))
             return True
         else:
             return False
@@ -55,24 +56,25 @@ class Agent:
     def take_new_move_instructions(self,
                               new_instructions: list[tuple[int, int]]) -> bool:
 
+        # Checks if individual move-instructions are legal
         def _verify_move_instruction_legality(instruction: tuple[int, int]) -> bool:
             if instruction[0] < -1 or instruction[0] > 1 or instruction[1] < -1 or instruction[1] > 1:
                 return False
             else:
                 return True
 
-        if len(new_instructions) <= len(self.move_instructions):
+        if len(new_instructions) <= len(self.move_instructions_queue):
             i = 0
             while i < len(new_instructions):
                 # Ensure instruction is legal; if not, cuts instruction short.
                 if _verify_move_instruction_legality(new_instructions[i]):
-                    self.move_instructions[i] = new_instructions[i]
+                    self.move_instructions_queue[i] = new_instructions[i]
                     i += 1
                 else:
                     i = len(new_instructions)
             # Set termination
             if i < len(new_instructions):
-                self.move_instructions[i] = (0, 0)
+                self.move_instructions_queue[i] = (0, 0)
             return True
         else:
             return False
@@ -85,22 +87,36 @@ class Agent:
             return False
 
 
-class Map:
+class SimMap:
     def __init__(self,
                  map_width: int,
                  map_height: int):
         self.map_width = map_width
         self.map_height = map_height
-        self.map_matrix = np.zeros((map_height, map_width))
+        self.map_matrix = [[0] * self.map_width for i in range(self.map_height)]
+
+    def print_map(self):
+        for row in range(self.map_height):
+            for col in range(self.map_width):
+                symbol = self.map_matrix[row][col]
+                print(symbol, end="    ")
+            print("\n")
+
+    def set_index_value(self, x, y, value) -> bool:
+        if x >= 0 and x < self.map_width and y >= 0 and y < self.map_height:
+            self.map_matrix[x][y] = value
+            return True
+        else:
+            return False
 
 
 
 
 class Simulation:
     def __init__(self,
-                 map: Map,
+                 sim_map: SimMap,
                  agents: list[Agent]):
-        self.map = map
+        self.sim_map = sim_map
         self.agents = agents
         self.agents_awaiting_instructions: list[Agent] = agents
         self.agents_with_instructions: list[Agent] = []
@@ -126,8 +142,17 @@ class Simulation:
             )
             agent.move_step()
 
+        # Iterate through move instructions of agents until termination instruction (0,0)
         for agent in self.agents_with_instructions:
-            agent.move_step()
+            if (agent.move_instructions_queue[0] == (0, 0)):
+                agent.wait_time = 10 # a placeholder until queued coord->wait->coord->wait implemented
+                self.agents_with_instructions.remove(agent)
+                self.agents_waiting.append(agent)
+            else:
+                agent.move_step()
+
+        #for agent
+
 
 
 
@@ -145,6 +170,9 @@ def main():
         agent.move_step()
         print(agent.x, agent.y)
         agent.update_target_dest_queue()
+
+    sim_map = SimMap(20, 20)
+    sim_map.print_map()
 
 
 

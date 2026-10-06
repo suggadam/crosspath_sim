@@ -17,8 +17,8 @@ class Agent:
         self.wait_time = 0
         self.pos_log = [(0, 0)] * pos_log_cap # Updates one element per tick in the simulation
 
-    def log(self):
-        self.pos_log.append((self.x, self.y))
+    def log(self, tick: int):
+        self.pos_log[tick] = (self.x, self.y)
 
     def update_target_dest_queue(self):
         # Update procedure only possible if there are at least two destinations in queue
@@ -86,25 +86,25 @@ class Agent:
             return False
 
 
-class SimMap:
+class SimGrid:
     def __init__(self,
-                 map_width: int,
-                 map_height: int):
-        self.map_width = map_width
-        self.map_height = map_height
-        self.map_matrix = [[0] * self.map_width for i in range(self.map_height)]
+                 grid_width: int,
+                 grid_height: int):
+        self.grid_width = grid_width
+        self.grid_height = grid_height
+        self.grid_matrix = [[0] * self.grid_width for i in range(self.grid_height)]
 
-    def print_map(self):
-        for row in range(self.map_height):
-            for col in range(self.map_width):
-                symbol = self.map_matrix[row][col]
+    def print_grid(self):
+        for row in range(self.grid_height):
+            for col in range(self.grid_width):
+                symbol = self.grid_matrix[row][col]
                 print(symbol, end=" ")
             print("\n")
 
-    # Use to draw obstructions on map
+    # Use to draw obstructions on grid
     def set_index_value(self, x, y, value) -> bool:
-        if x >= 0 and x < self.map_width and y >= 0 and y < self.map_height:
-            self.map_matrix[x][y] = value
+        if x >= 0 and x < self.grid_width and y >= 0 and y < self.grid_height:
+            self.grid_matrix[x][y] = value
             return True
         else:
             return False
@@ -114,17 +114,19 @@ class SimMap:
 
 class Simulation:
     def __init__(self,
-                 sim_map: SimMap,
+                 sim_grid: SimGrid,
                  agents: list[Agent],
                  max_instructions_length: int):
-        self.sim_map = sim_map
+        self.current_tick = 0
+        self.sim_grid = sim_grid
         self.agents = agents
-        self.agents_awaiting_instructions: list[Agent] = agents
+        # Create copy of references-list to agents, to be appended and removed between the logic-lists
+        self.agents_awaiting_instructions: list[Agent] = list(agents)
         self.agents_with_instructions: list[Agent] = []
         self.agents_waiting: list[Agent] = []
         self.max_instructions_length = max_instructions_length
 
-    def blank_map_pathfind(self, current_coords: tuple[int, int], target_coords: tuple[int, int]) -> list[tuple[int, int]]:
+    def blank_grid_pathfind(self, current_coords: tuple[int, int], target_coords: tuple[int, int]) -> list[tuple[int, int]]:
         move_instructions = [(0, 0)] * self.max_instructions_length
         virtual_x = current_coords[0]
         virtual_y = current_coords[1]
@@ -158,40 +160,44 @@ class Simulation:
     # Secondly, agents with move-instructions. These will take a step then check if they've completed their commute.
     # Thirdly, agents that are waiting. These will check if their wait is complete; transfer to awaiting-instructions.
     def tick(self):
-        print("Performing tick")
+        print("\nPerforming tick")
 
         # Log state of all agents at the start of the tick
         print("0. Logging all agent positions")
         for agent in self.agents:
-            agent.log()
+            agent.log(self.current_tick)
 
         # Call pathfind for agents with no instructions
         print(f"1. Creating move-instructions for all awaiting agents [{len(self.agents_awaiting_instructions)}]")
-        for agent in self.agents_awaiting_instructions:
+        for agent in list(self.agents_awaiting_instructions):
             agent.take_new_move_instructions(
-                self.blank_map_pathfind((agent.x, agent.y), agent.target_dest_queue[0])
+                self.blank_grid_pathfind((agent.x, agent.y), agent.target_dest_queue[0])
             )
-            agent.move_step()
             self.agents_awaiting_instructions.remove(agent)
             self.agents_with_instructions.append(agent)
 
         # Iterate through move instructions of agents until termination instruction (0,0)
         print(f"2. Performing move-instruction step for all active agents [{len(self.agents_with_instructions)}]")
-        for agent in self.agents_with_instructions:
-            if (agent.move_instructions_queue[0] == (0, 0)):
+        for agent in list(self.agents_with_instructions):
+            if agent.move_instructions_queue[0] == (0, 0):
+                # Target reached; therefore, set new target
                 agent.update_target_dest_queue()
-                agent.wait_time = 10 # a placeholder until queued coord->wait->coord->wait implemented
+                agent.wait_time = 50 # a placeholder until queued coord->wait->coord->wait implemented
                 self.agents_with_instructions.remove(agent)
                 self.agents_waiting.append(agent)
             else:
                 agent.move_step()
 
         print(f"3. Performing wait-tick for all waiting agents [{len(self.agents_waiting)}]")
-        for agent in self.agents_waiting:
+        for agent in list(self.agents_waiting):
             agent.wait_tick()
             if agent.wait_time <= 0:
                 self.agents_waiting.remove(agent)
                 self.agents_awaiting_instructions.append(agent)
+
+        self.current_tick += 1
+
+        print("\n")
 
 
 
@@ -207,28 +213,28 @@ def main():
     print("Hello World")
     # Declare and define simulation variables
     max_num_of_ticks = 1000
-    map_width = 100
-    map_height = 100
-    sim_map = SimMap(map_width, map_height)
+    grid_width = 100
+    grid_height = 100
+    sim_grid = SimGrid(grid_width, grid_height)
     num_agents = 100
     max_instructions_length = 100
     log_cap = 1000
     print("Initializing agents")
     agents = [Agent(i,
-                    (randint(0, map_width), randint(0, map_height)),
-                    (randint(0, map_width), randint(0, map_height)),
+                    (randint(0, grid_width), randint(0, grid_height)),
+                    (randint(0, grid_width), randint(0, grid_height)),
                      max_instructions_length,
                      log_cap) for i in range(num_agents)]
 
 
     print("Starting simulation")
-    simulation = Simulation(sim_map, agents, max_instructions_length)
+    simulation = Simulation(sim_grid, agents, max_instructions_length)
 
     for i in range(max_num_of_ticks):
         print(f"Tick #{i}")
         simulation.tick()
-        if i % 100 == 0:
-            for agent in agents:
+        if i % 33 == 0:
+            for agent in agents[0:10]:
                 print(f"Agent #{agent.uid}:"
                       f"\tx={agent.x},"
                       f"\ty={agent.y},"
@@ -236,6 +242,7 @@ def main():
                       f"\thome={agent.HOME_COORDS},"
                       f"\twork={agent.WORK_COORDS}")
                 print(agent.pos_log)
+                print(agent.move_instructions_queue)
 
 
 

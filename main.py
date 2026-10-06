@@ -13,8 +13,6 @@ class Agent:
         self.y = home_coords[1]
         self.HOME_COORDS = home_coords
         self.WORK_COORDS = work_coords
-        self.target_coords = (0, 0)
-        # To-do-queue:
         self.target_dest_queue: list[tuple[int, int]] = [home_coords, work_coords]
         self.move_instructions: list[tuple[int, int]] = [(0,0)] * max_instructions_length
         self.wait_time = 0
@@ -24,11 +22,22 @@ class Agent:
         self.pos_log.append((self.x, self.y))
 
     def update_target_dest_queue(self):
-        self.target_dest_queue.append(self.target_dest_queue[0])
-        self.target_dest_queue = self.target_dest_queue[1:]
+        # Update procedure only possible if there are at least two destinations in queue
+        if len(self.target_dest_queue) >= 2:
+            self.target_dest_queue.append(self.target_dest_queue[0])
+            self.target_dest_queue = self.target_dest_queue[1:]
+        else:
+            self.target_dest_queue = [self.HOME_COORDS, self.WORK_COORDS]
 
     def queue_new_target_dest(self, new_target_dest: tuple[int, int]):
         self.target_dest_queue.append(new_target_dest)
+
+    def check_if_at_target(self) -> bool:
+        if (self.x, self.y) == self.target_dest_queue[0]:
+            return True
+        else:
+            return False
+
 
     # Instructions should be verified before use
     def move_step(self) -> bool:
@@ -115,6 +124,9 @@ class Simulation:
             agent.take_new_move_instructions(
                 self.pathfind((agent.x, agent.y), agent.target_dest_queue[0])
             )
+            agent.move_step()
+
+        for agent in self.agents_with_instructions:
             agent.move_step()
 
 

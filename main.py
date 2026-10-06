@@ -1,8 +1,5 @@
 from random import randint
 
-import numpy as np
-import random
-
 class Agent:
     def __init__(self,
                  uid: int,
@@ -11,8 +8,8 @@ class Agent:
                  max_instructions_length: int,
                  pos_log_cap: int):
         self.uid = uid
-        self.x = home_coords[0]
-        self.y = home_coords[1]
+        self.x = randint(0, home_coords[0])
+        self.y = randint(0, home_coords[1])
         self.HOME_COORDS = home_coords
         self.WORK_COORDS = work_coords
         self.target_dest_queue: list[tuple[int, int]] = [home_coords, work_coords]
@@ -27,7 +24,7 @@ class Agent:
         # Update procedure only possible if there are at least two destinations in queue
         if len(self.target_dest_queue) >= 2:
             self.target_dest_queue.append(self.target_dest_queue[0])
-            self.target_dest_queue = self.target_dest_queue[1:]
+            self.target_dest_queue.pop(0)
         else:
             self.target_dest_queue = [self.HOME_COORDS, self.WORK_COORDS]
 
@@ -118,38 +115,41 @@ class SimMap:
 class Simulation:
     def __init__(self,
                  sim_map: SimMap,
-                 agents: list[Agent]):
+                 agents: list[Agent],
+                 max_instructions_length: int):
         self.sim_map = sim_map
         self.agents = agents
         self.agents_awaiting_instructions: list[Agent] = agents
         self.agents_with_instructions: list[Agent] = []
         self.agents_waiting: list[Agent] = []
+        self.max_instructions_length = max_instructions_length
 
     def blank_map_pathfind(self, current_coords: tuple[int, int], target_coords: tuple[int, int]) -> list[tuple[int, int]]:
-        move_instructions = []
+        move_instructions = [(0, 0)] * self.max_instructions_length
         virtual_x = current_coords[0]
         virtual_y = current_coords[1]
+        num_of_steps = 0
 
-        while (virtual_x != target_coords[0] and virtual_y != target_coords[1]):
+        while not (virtual_x == target_coords[0] and virtual_y == target_coords[1]):
             current_step = (0, 0)
             # Determine whether to move left or right
             if target_coords[0] < virtual_x:
-                current_step = (current_step[0] - 1, current_step[1])
-            elif target_coords[0] > virtual_y:
-                current_step = (current_step[0] + 1, current_step[1])
+                current_step = (-1, current_step[1])
+            elif target_coords[0] > virtual_x:
+                current_step = (1, current_step[1])
             # Determine whether to move up or down
-            if target_coords[1] < virtual_x:
-                current_step = (current_step[0], current_step[1] - 1)
+            if target_coords[1] < virtual_y:
+                current_step = (current_step[0], -1)
             elif target_coords[1] > virtual_y:
-                current_step = (current_step[0], current_step[1] + 1)
+                current_step = (current_step[0], 1)
 
 
             # Update virtual coordinates
             virtual_x += current_step[0]
             virtual_y += current_step[1]
             # Add step to instructions
-            move_instructions.append(current_step)
-
+            move_instructions[num_of_steps] = current_step
+            num_of_steps += 1
 
         return move_instructions
 
@@ -161,29 +161,32 @@ class Simulation:
         print("Performing tick")
 
         # Log state of all agents at the start of the tick
-        print("Logging all agent positions")
+        print("0. Logging all agent positions")
         for agent in self.agents:
             agent.log()
 
         # Call pathfind for agents with no instructions
-        print("Creating and providing move-instructions for all awaiting agents")
+        print(f"1. Creating move-instructions for all awaiting agents [{len(self.agents_awaiting_instructions)}]")
         for agent in self.agents_awaiting_instructions:
             agent.take_new_move_instructions(
                 self.blank_map_pathfind((agent.x, agent.y), agent.target_dest_queue[0])
             )
             agent.move_step()
+            self.agents_awaiting_instructions.remove(agent)
+            self.agents_with_instructions.append(agent)
 
         # Iterate through move instructions of agents until termination instruction (0,0)
-        print("Performing move-instruction step for all active agents")
+        print(f"2. Performing move-instruction step for all active agents [{len(self.agents_with_instructions)}]")
         for agent in self.agents_with_instructions:
             if (agent.move_instructions_queue[0] == (0, 0)):
+                agent.update_target_dest_queue()
                 agent.wait_time = 10 # a placeholder until queued coord->wait->coord->wait implemented
                 self.agents_with_instructions.remove(agent)
                 self.agents_waiting.append(agent)
             else:
                 agent.move_step()
 
-        print("Performing wait-tick for all waiting agents")
+        print(f"3. Performing wait-tick for all waiting agents [{len(self.agents_waiting)}]")
         for agent in self.agents_waiting:
             agent.wait_tick()
             if agent.wait_time <= 0:
@@ -207,10 +210,9 @@ def main():
     map_width = 100
     map_height = 100
     sim_map = SimMap(map_width, map_height)
-    num_agents = 10
+    num_agents = 100
     max_instructions_length = 100
     log_cap = 1000
-
     print("Initializing agents")
     agents = [Agent(i,
                     (randint(0, map_width), randint(0, map_height)),
@@ -220,11 +222,20 @@ def main():
 
 
     print("Starting simulation")
-    simulation = Simulation(sim_map, agents)
+    simulation = Simulation(sim_map, agents, max_instructions_length)
 
     for i in range(max_num_of_ticks):
-        print("Tick #{}".format(i))
+        print(f"Tick #{i}")
         simulation.tick()
+        if i % 100 == 0:
+            for agent in agents:
+                print(f"Agent #{agent.uid}:"
+                      f"\tx={agent.x},"
+                      f"\ty={agent.y},"
+                      f"\twait={agent.wait_time}"
+                      f"\thome={agent.HOME_COORDS},"
+                      f"\twork={agent.WORK_COORDS}")
+                print(agent.pos_log)
 
 
 

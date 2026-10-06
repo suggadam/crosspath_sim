@@ -1,144 +1,131 @@
-# The Agent object;
-# Input -> home-coordinates: tuple(x, y), workplace-coordinates: tuple(x, y)
-# Holds relevant coordinates and
+import numpy as np
+
+from main import pathfind
+
+
 class Agent:
     def __init__(self,
                  uid: int,
                  home_coords: tuple[int, int],
                  work_coords: tuple[int, int],
-                 maximum_move_instruction_length: int):
+                 max_instructions_length: int,
+                 pos_log_cap: int):
         self.uid = uid
-        self.home_coords = home_coords
-        self.work_coords = work_coords
-        self.current_coords = (home_coords[0], home_coords[1])
-        self.move_instructions = [(0,0)] * maximum_move_instruction_length
+        self.x = home_coords[0]
+        self.y = home_coords[1]
+        self.HOME_COORDS = home_coords
+        self.WORK_COORDS = work_coords
+        self.target_coords = (0, 0)
+        # To-do-queue:
+        self.target_dest_queue: list[tuple[int, int]] = [home_coords, work_coords]
+        self.move_instructions: list[tuple[int, int]] = [(0,0)] * max_instructions_length
         self.wait_time = 0
+        self.pos_log = [(0, 0)] * pos_log_cap # Updates one element per tick in the simulation
 
+    def log(self):
+        self.pos_log.append((self.x, self.y))
 
-    # Provides agent with new move-instructions to iterate through at each time-step
-    # Overrides old move-instructions with new; after last new index, iterates once to add termination 0, 0 tuple.
-    def add_move_instructions(self, new_move_instructions: list[tuple[int, int]]):
-        assert len(new_move_instructions) <= len(self.move_instructions)
-        i = 0
-        while i < len(new_move_instructions):
-            self.move_instructions[i] = new_move_instructions[i]
-            i += 1
-        if i < len(self.move_instructions):
-            self.move_instructions[i] = (0, 0) # Set termination at index after last instruction
+    def update_target_dest_queue(self):
+        self.target_dest_queue.append(self.target_dest_queue[0])
+        self.target_dest_queue = self.target_dest_queue[1:]
 
-    # Function called each tick;
-    # Iterates through move-instruction list, applying translation from first index to agent's coords.
-    def move_one_step(self):
-        # Update coordinates with move-instruction; tuples (-1/0/1, -1/0/1) representing axial translation
-        # Allows diagonal movement in one-tick.
+    def queue_new_target_dest(self, new_target_dest: tuple[int, int]):
+        self.target_dest_queue.append(new_target_dest)
+
+    # Instructions should be verified before use
+    def move_step(self) -> bool:
         if self.move_instructions[0] != (0, 0):
-            self.current_coords[0] += self.move_instructions[0][0] # Adjust x-coordinate
-            self.current_coords[1] += self.move_instructions[0][1] # Adjust y-coordinate
+            # Translate current position to new position with instructions
+            self.x += self.move_instructions[0][0]
+            self.y += self.move_instructions[0][1]
+            # Update instruction, deleting used instruction and appending empty instruction
+            self.move_instructions = self.move_instructions[1:]
+            self.move_instructions.append((0, 0))
+            return True
         else:
-            return 1
-        # Update instructions; delete used instruction, add empty to end.
-        self.move_instructions = self.move_instructions[1:]
-        self.move_instructions.append((0, 0))
+            return False
 
+    def take_new_move_instructions(self,
+                              new_instructions: list[tuple[int, int]]) -> bool:
 
-    # Function called to wait agent [remove from active list, add to waiting list]
-    # Once wait is complete, returns 0 [remove from waiting list, add to active list]
+        def _verify_move_instruction_legality(instruction: tuple[int, int]) -> bool:
+            if instruction[0] < -1 or instruction[0] > 1 or instruction[1] < -1 or instruction[1] > 1:
+                return False
+            else:
+                return True
+
+        if len(new_instructions) <= len(self.move_instructions):
+            i = 0
+            while i < len(new_instructions):
+                # Ensure instruction is legal; if not, cuts instruction short.
+                if _verify_move_instruction_legality(new_instructions[i]):
+                    self.move_instructions[i] = new_instructions[i]
+                    i += 1
+                else:
+                    i = len(new_instructions)
+            # Set termination
+            if i < len(new_instructions):
+                self.move_instructions[i] = (0, 0)
+            return True
+        else:
+            return False
+
     def wait_tick(self):
-        if self.wait_time == 0:
-            return 0
-        else:
+        if self.wait_time >= 1:
             self.wait_time -= 1
+            return True
+        else:
+            return False
+
+
+class Map:
+    def __init__(self,
+                 map_width: int,
+                 map_height: int):
+        self.map_width = map_width
+        self.map_height = map_height
 
 
 
-# Finds quickest path from starting position to goal (distance * resistance).
-# Using JPS, Jump Point Search.
-# Returns a list of (x, y) coordinates as instructions to follow.
-# Calls on each agent in "active-agent-list-with-no-instruction"
-def pathfind(map_matrix: list[list[int]],
-             starting_coords: tuple[int, int],
-             goal_coords: tuple[int, int], max_num_of_steps: int) -> list[tuple[int, int]]:
-    instructions = [(0, 0)] * max_num_of_steps # Static memory
-    print("pathfinding")
-    return []
+class Simulation:
+    def __init__(self,
+                 map: Map,
+                 agents: list[Agent]):
+        self.map = map
+        self.agents = agents
+        self.agents_awaiting_instructions: list[Agent] = agents
+        self.agents_with_instructions: list[Agent] = []
+        self.agents_waiting: list[Agent] = []
+
+    def pathfind(self, current_coords: tuple[int, int], target_coords: tuple[int, int]) -> list[tuple[int, int]]:
+
+    # Iterate through three categories of agent, in separate lists:
+    # Firstly, agents awaiting their move-instructions. These will pathfind then take a step.
+    # Secondly, agents with move-instructions. These will take a step then check if they've completed their commute.
+    # Thirdly, agents that are waiting. These will check if their wait is complete; transfer to awaiting-instructions.
+    def tick(self):
+        for agent in self.agents:
+            agent.log()
+
+        for agent in self.agents_awaiting_instructions:
+            agent.take_new_move_instructions(
+                self.pathfind((agent.x, agent.y), )
+            )
 
 
 
-# Time step;
-# Input -> tick: int - used to determine what logic to perform.
-# Operate on a tick-by-tick basis.
-# Midnight/New-day at tick 0; scales timely events in accordance to ticks-in-day.
-def time_step(tick: int,
-              ticks_in_day: int,
-              map_matrix: list[list[int]],
-              active_agents_no_instructions: list[Agent],
-              active_agents_with_instructions: list[Agent],
-              waiting_agents: list[Agent]):
-    print("tick", tick)
-
-    for agent in active_agents_with_instructions:
-        if agent.move_one_step() == 1:
-            active_agents_with_instructions.remove(agent)
-            active_agents_no_instructions.append(agent)
-
-    for agent in active_agents_no_instructions:
-        path = pathfind(map_matrix, )
 
 
 
-# Generate an empty matrix of the world
-def generate_world(world_max_w: int, world_max_y: int) -> list[list[int]]:
-    # Ints represent move-speed restriction; 0 is unrestricted. 100 is uncommutable (a wall).
-    world = [[0 for i in range(world_max_w)] for i in range(world_max_y)]
 
-    return world
-
-
-
-# Generate the list of default-agents
-def generate_agents(num_of_agents: int) -> list[Agent]:
-    list_of_agents = []
-
-    for i in range(num_of_agents):
-        list_of_agents.append(Agent(i, (0, 0), (10, 10), 1000))
-
-    return list_of_agents
-
-
-def print_map(map_matrix: list[list[int]]):
-    for row in map_matrix:
-        print(row)
-
-# def print_map_with_agents():
-
-# def print_map_with_agent_and_path
 
 def main():
-    print("Hello World")
-
-    # Take user input for parameters of world and agents
-    world_max_x = 100
-    world_max_y = 100
-    num_of_agents = 10
-    max_num_of_ticks = 10000
-    duration_of_day_in_ticks = 86400 # If 1-tick = 1-second then 86400-ticks = 24-hours
-
-    # Call functions to generate world and agents
-    world_matrix = generate_world(world_max_x, world_max_y)
-    list_of_agents = generate_agents(num_of_agents)
-
-    # Agents in this list awaiting pathfinding
-    active_agent_list_no_instruction: list[Agent] = []
-    # Agents in this list to perform move instructions
-    active_agent_list_with_instruction: list[Agent] = []
-    # Agents in this list to iterate their wait order
-    waiting_agent_list: list[Agent] = []
-
-
-    # Simulation Begins
-    for agent in list_of_agents:
-        active_agent_list_no_instruction.append(agent)
-
+    agent = Agent(0, (0, 0), (100, 100), 100, 1000)
+    agent.take_new_move_instructions([(1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1)])
+    for i in range(100):
+        agent.move_step()
+        print(agent.x, agent.y)
+        agent.update_target_dest_queue()
 
 if __name__ == '__main__':
     main()

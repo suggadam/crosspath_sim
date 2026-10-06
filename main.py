@@ -1,7 +1,5 @@
 import numpy as np
 
-from main import pathfind
-
 
 class Agent:
     def __init__(self,
@@ -84,6 +82,8 @@ class Map:
                  map_height: int):
         self.map_width = map_width
         self.map_height = map_height
+        self.map_matrix = np.zeros((map_height, map_width))
+
 
 
 
@@ -98,6 +98,9 @@ class Simulation:
         self.agents_waiting: list[Agent] = []
 
     def pathfind(self, current_coords: tuple[int, int], target_coords: tuple[int, int]) -> list[tuple[int, int]]:
+        move_instructions = []
+        print("pathfind")
+        return move_instructions
 
     # Iterate through three categories of agent, in separate lists:
     # Firstly, agents awaiting their move-instructions. These will pathfind then take a step.
@@ -107,10 +110,14 @@ class Simulation:
         for agent in self.agents:
             agent.log()
 
+        # Call pathfind for agents with no instructions
         for agent in self.agents_awaiting_instructions:
             agent.take_new_move_instructions(
-                self.pathfind((agent.x, agent.y), )
+                self.pathfind((agent.x, agent.y), agent.target_dest_queue[0])
             )
+            agent.move_step()
+
+
 
 
 
@@ -122,10 +129,12 @@ class Simulation:
 def main():
     agent = Agent(0, (0, 0), (100, 100), 100, 1000)
     agent.take_new_move_instructions([(1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1), (1, 0), (0, 1)])
-    for i in range(100):
+    for i in range(15):
         agent.move_step()
         print(agent.x, agent.y)
         agent.update_target_dest_queue()
+
+
 
 if __name__ == '__main__':
     main()

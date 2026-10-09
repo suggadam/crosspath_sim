@@ -41,13 +41,15 @@ class Simulation:
         self.agents_waiting: list[Agent] = []
         self.max_instructions_length = max_instructions_length
 
-    def blank_grid_pathfind(self, current_coords: tuple[int, int], target_coords: tuple[int, int]) -> list[tuple[int, int]]:
+    def beeline_pathfind(self, current_coords: tuple[int, int],
+                         target_coords: tuple[int, int]) -> list[tuple[int, int]]:
         move_instructions = [(0, 0)] * self.max_instructions_length
         virtual_x = current_coords[0]
         virtual_y = current_coords[1]
         num_of_steps = 0
 
-        while not (virtual_x == target_coords[0] and virtual_y == target_coords[1]):
+        while ((virtual_x != target_coords[0] or virtual_y != target_coords[1]) and
+               num_of_steps < self.max_instructions_length):
             current_step = (0, 0)
             # Determine whether to move left or right
             if target_coords[0] < virtual_x:
@@ -86,7 +88,7 @@ class Simulation:
         print(f"1. Creating move-instructions for all awaiting agents [{len(self.agents_awaiting_instructions)}]")
         for agent in list(self.agents_awaiting_instructions):
             agent.receive_move_instructions(
-                self.blank_grid_pathfind(agent.current_coords, agent.target_destination_queue[0])
+                self.beeline_pathfind(agent.current_coords, agent.target_destination_queue[0])
             )
             self.agents_awaiting_instructions.remove(agent)
             self.agents_with_instructions.append(agent)
@@ -94,12 +96,15 @@ class Simulation:
         # Iterate through move instructions of agents until termination instruction (0,0)
         print(f"2. Performing move-instruction step for all active agents [{len(self.agents_with_instructions)}]")
         for agent in list(self.agents_with_instructions):
-            if agent.move_instructions[0] == (0, 0):
+            if agent.current_coords == agent.target_destination_queue[0]:
                 # Target reached; therefore, set new target
                 agent.advance_target_destination_queue()
-                agent.wait_time = 50 # a placeholder until queued coord->wait->coord->wait implemented
+                agent.wait_time = 10 # a placeholder until queued coord->wait->coord->wait implemented
                 self.agents_with_instructions.remove(agent)
                 self.agents_waiting.append(agent)
+            elif agent.move_instructions[0] == (0, 0): # Ran out of instructions
+                self.agents_awaiting_instructions.append(agent)
+                self.agents_with_instructions.remove(agent)
             else:
                 agent.step()
 
@@ -132,7 +137,7 @@ def main():
     grid_height = 100
     sim_grid = SimGrid(grid_width, grid_height)
     num_agents = 100
-    max_instructions_length = 100
+    max_instructions_length = 10
     log_cap = 1000
     print("Initializing agents")
     agents = [Agent(i,

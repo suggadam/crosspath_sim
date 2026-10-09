@@ -13,7 +13,7 @@ class Agent:
         self.current_coords: tuple[int, int] = spawn_coords
         self.HOME_COORDS = home_coords
         self.WORK_COORDS = work_coords
-        self.target_destination_queue = []
+        self.target_destination_queue = [self.HOME_COORDS, self.WORK_COORDS]
         # A list of tuples (x, y) to be treated as translation steps, performed iteratively.
         # Static list length.
         self.move_instructions = [(0, 0)] * max_instructions_length
@@ -23,7 +23,7 @@ class Agent:
         self.log = []
         self.log_cap = log_cap
 
-    def log(self):
+    def perform_log(self):
         if len(self.log) < self.log_cap:
             self.log.append(self.current_coords)
         else:
